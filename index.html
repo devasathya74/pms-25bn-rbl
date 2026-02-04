@@ -52,11 +52,58 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/assets/images/logo/favicon-16x16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/images/logo/apple-touch-icon.png">
 
-    <!-- Tailwind CSS -->
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS - Using jsDelivr CDN (no CORS issues) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
 
-    <!-- Google Fonts -->
+    <!-- Custom Tailwind Colors via CSS Variables -->
+    <style>
+        :root {
+            --color-primary: #1e3a8a;
+            --color-secondary: #facc15;
+            --color-accent: #3b82f6;
+            --color-soft: #f3f4f6;
+        }
+
+        .bg-primary {
+            background-color: var(--color-primary) !important;
+        }
+
+        .text-primary {
+            color: var(--color-primary) !important;
+        }
+
+        .border-primary {
+            border-color: var(--color-primary) !important;
+        }
+
+        .bg-secondary {
+            background-color: var(--color-secondary) !important;
+        }
+
+        .text-secondary {
+            color: var(--color-secondary) !important;
+        }
+
+        .border-secondary {
+            border-color: var(--color-secondary) !important;
+        }
+
+        .bg-accent {
+            background-color: var(--color-accent) !important;
+        }
+
+        .text-accent {
+            color: var(--color-accent) !important;
+        }
+
+        .bg-soft {
+            background-color: var(--color-soft) !important;
+        }
+    </style>
+
+    <!-- Google Fonts with display=swap for better performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
         href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
@@ -66,7 +113,8 @@
         rel="stylesheet">
 
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+        crossorigin="anonymous" referrerpolicy="no-referrer">
 
     <!-- AOS (Animate On Scroll) -->
     <link rel="stylesheet" href="https://unpkg.com/aos@2.3.1/dist/aos.css">
@@ -74,32 +122,10 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/assets/css/main.css">
 
-
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#1e3a8a', // गहरा नीला (पुलिस थीम)
-                        secondary: '#facc15', // पीला
-                        accent: '#3b82f6', // हल्का नीला
-                        soft: '#f3f4f6',
-                    },
-                    fontFamily: {
-                        sans: ['"Tiro Devanagari Hindi"', 'sans-serif'], // हिंदी फॉन्ट
-                        heading: ['"Tiro Devanagari Hindi"', 'sans-serif'],
-                        hand: ['"Kalam"', 'cursive'],
-                    }
-                }
-            }
-        }
-    </script>
-
     <style>
         body {
             font-family: 'Tiro Devanagari Hindi', serif;
-            scroll-behavior: smooth;
+            /* scroll-behavior removed - handled by JavaScript for better control */
         }
 
         h1,
@@ -162,6 +188,41 @@
             transform: scale(1.05);
         }
     </style>
+
+    <!-- CDN Loading Status Checker -->
+    <script>
+        // Check if CDN resources loaded successfully
+        window.addEventListener('load', function () {
+            setTimeout(function () {
+                const cdnStatus = {
+                    tailwind: document.querySelector('link[href*="tailwindcss"]') !== null,
+                    fontAwesome: document.querySelector('link[href*="font-awesome"]') !== null,
+                    aos: typeof AOS !== 'undefined'
+                };
+
+                console.log('CDN Loading Status:', cdnStatus);
+
+                if (!cdnStatus.tailwind) {
+                    console.warn('⚠️ Tailwind CSS failed to load - styles may not work correctly');
+                } else {
+                    console.log('✅ Tailwind CSS loaded successfully from jsDelivr');
+                }
+                if (!cdnStatus.fontAwesome) {
+                    console.warn('⚠️ Font Awesome failed to load - icons may not display');
+                } else {
+                    console.log('✅ Font Awesome loaded successfully');
+                }
+                if (!cdnStatus.aos) {
+                    console.warn('⚠️ AOS (Animate On Scroll) failed to load - animations may not work');
+                }
+
+                // Show success message if all loaded
+                if (cdnStatus.tailwind && cdnStatus.fontAwesome) {
+                    console.log('✅ All critical CDN resources loaded successfully');
+                }
+            }, 500);
+        });
+    </script>
 </head>
 
 <body class="text-gray-700 bg-white">
@@ -1103,21 +1164,11 @@
             }
         });
 
-        // Smooth Scroll for Links
+        // Close mobile menu when clicking on a link (smooth scroll handled by main.js)
         links.forEach(link => {
-            link.addEventListener('click', function (e) {
-                e.preventDefault();
+            link.addEventListener('click', function () {
                 mobileMenu.classList.remove('open');
-
-                const targetId = this.getAttribute('href');
-                const targetSection = document.querySelector(targetId);
-
-                if (targetSection) {
-                    window.scrollTo({
-                        top: targetSection.offsetTop - 80,
-                        behavior: 'smooth'
-                    });
-                }
+                mobileMenu.classList.add('hidden');
             });
         });
 
@@ -1180,14 +1231,21 @@
 
     <!-- Firebase Configuration -->
     <script type="module">
-        import { authHelper, firestoreHelper, analyticsHelper } from '/assets/js/firebase-config.js';
-        // Make firestoreHelper available globally for contact form
-        window.firestoreHelper = firestoreHelper;
-        window.analyticsHelper = analyticsHelper;
+        try {
+            const { authHelper, firestoreHelper, analyticsHelper } = await import('/assets/js/firebase-config.js');
+            // Make helpers available globally for contact form and main.js
+            window.firestoreHelper = firestoreHelper;
+            window.analyticsHelper = analyticsHelper;
+            window.authHelper = authHelper;
+            console.log('Firebase loaded successfully');
+        } catch (error) {
+            console.warn('Firebase failed to load:', error);
+            // Page will still work without Firebase
+        }
     </script>
 
-    <!-- Custom JavaScript -->
-    <script src="/assets/js/main.js"></script>
+    <!-- Custom JavaScript - Loaded after Firebase -->
+    <script defer src="/assets/js/main.js"></script>
 
     <!-- Service Worker Registration -->
     <script>
@@ -1204,14 +1262,7 @@
         }
     </script>
 
-    <!-- Google Analytics (Replace with your GA4 ID) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag() { dataLayer.push(arguments); }
-        gtag('js', new Date());
-        gtag('config', 'G-XXXXXXXXXX');
-    </script>
+    <!-- Google Analytics already loaded in head section -->
 </body>
 
 </html>

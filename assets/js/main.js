@@ -430,21 +430,34 @@ function initLazyLoading() {
 // ========================================
 // Smooth Scroll Enhancement
 // ========================================
-document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-    anchor.addEventListener('click', function (e) {
-        const href = this.getAttribute('href');
-        if (href === '#') return;
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            const href = this.getAttribute('href');
+            if (href === '#' || href === '#!') return;
 
-        e.preventDefault();
-        const target = document.querySelector(href);
-        if (target) {
-            const offset = 80; // Navbar height
-            const targetPosition = target.offsetTop - offset;
-            window.scrollTo({
-                top: targetPosition,
-                behavior: 'smooth'
-            });
-        }
+            e.preventDefault();
+            const target = document.querySelector(href);
+            if (target) {
+                // Calculate navbar height dynamically
+                const navbar = document.getElementById('navbar');
+                const noticeBoard = document.getElementById('notice-board');
+                let offset = 0;
+
+                if (navbar) offset += navbar.offsetHeight;
+                if (noticeBoard) offset += noticeBoard.offsetHeight;
+
+                // Add small buffer
+                offset += 20;
+
+                const targetPosition = target.offsetTop - offset;
+
+                window.scrollTo({
+                    top: targetPosition,
+                    behavior: 'smooth'
+                });
+            }
+        });
     });
 });
 
