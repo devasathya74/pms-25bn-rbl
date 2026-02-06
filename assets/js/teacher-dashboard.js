@@ -1,4 +1,4 @@
-import { auth, db, authHelper, firestoreHelper, onAuthStateChanged, collection, query, where, getDocs, doc, setDoc, addDoc } from './firebase-config.js';
+import { auth, db, authHelper, firestoreHelper, onAuthStateChanged, collection, query, where, getDocs, doc, setDoc, addDoc, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from './firebase-config.js';
 
 let currentUser = null;
 let currentTeacherProfile = null;
@@ -388,3 +388,138 @@ window.sendReport = async function (e) {
 // Make logout available
 window.authHelper = authHelper;
 window.loadStudents = () => loadStudents(currentTeacherProfile?.assignedClass);
+
+
+// Helper: Toast Notification
+window.showToast = function (type, message) {
+    const toast = document.createElement('div');
+    toast.className = `fixed top-4 right-4 z-[99999] px-6 py-3 rounded-lg shadow-lg transform transition-all duration-300 translate-y-0 ${type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`;
+    toast.innerHTML = `
+        <div class="flex items-center gap-2">
+            <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i>
+            <span class="font-bold">${message}</span>
+        </div>
+    `;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add('-translate-y-full', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+};
+
+// User Profile & Password Management
+window.toggleUserDropdown = function () {
+    const dropdown = document.getElementById('user-dropdown');
+    dropdown.classList.toggle('hidden');
+    // Close if clicked outside
+    if (!dropdown.classList.contains('hidden')) {
+        document.addEventListener('click', closeDropdownOnClickOutside);
+    } else {
+        document.removeEventListener('click', closeDropdownOnClickOutside);
+    }
+}
+
+function closeDropdownOnClickOutside(e) {
+    const dropdown = document.getElementById('user-dropdown');
+    const button = document.querySelector('button[onclick="toggleUserDropdown()"]');
+    if (!dropdown.contains(e.target) && !button.contains(e.target)) {
+        dropdown.classList.add('hidden');
+        document.removeEventListener('click', closeDropdownOnClickOutside);
+    }
+}
+
+window.openChangePasswordModal = function () {
+    document.getElementById('user-dropdown').classList.add('hidden'); // Close dropdown
+    const modal = document.getElementById('change-password-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    setTimeout(() => {
+        document.getElementById('password-modal-content').classList.remove('scale-95', 'opacity-0');
+        document.getElementById('password-modal-content').classList.add('scale-100', 'opacity-100');
+    }, 10);
+    document.getElementById('change-password-form').reset();
+}
+
+window.closeChangePasswordModal = function () {
+    const content = document.getElementById('password-modal-content');
+    content.classList.remove('scale-100', 'opacity-100');
+    content.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => {
+        const modal = document.getElementById('change-password-modal');
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }, 300);
+}
+
+window.togglePasswordVisibility = function (id) {
+    const input = document.getElementById(id);
+    const icon = input.parentElement.querySelector('i.fa-eye') || input.parentElement.querySelector('i.fa-eye-slash');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
+window.handlePasswordChange = async function (e) {
+    e.preventDefault();
+    const currentPassword = document.getElementById('current-password').value;
+    const newPassword = document.getElementById('new-password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+    const btn = document.getElementById('save-password-btn');
+
+    if (newPassword !== confirmPassword) {
+        showToast('error', 'New passwords do not match!');
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        showToast('error', 'Password must be at least 6 characters.');
+        return;
+    }
+
+    try {
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+        btn.disabled = true;
+
+        const user = auth.currentUser;
+        if (!user) {
+            showToast('error', 'User not authenticated. Please login again.');
+            setTimeout(() => authHelper.logout(), 2000);
+            return;
+        }
+
+        // 1. Re-authenticate
+        const credential = EmailAuthProvider.credential(user.email, currentPassword);
+        await reauthenticateWithCredential(user, credential);
+
+        // 2. Update Password
+        await updatePassword(user, newPassword);
+
+        showToast('success', 'Password updated successfully!');
+        closeChangePasswordModal();
+
+    } catch (error) {
+        console.error("Password Update Error:", error);
+        let msg = 'Failed to update password.';
+        if (error.code === 'auth/wrong-password') msg = 'Current password is incorrect.';
+        if (error.code === 'auth/requires-recent-login') msg = 'Please logout and login again to proceed.';
+        showToast('error', msg);
+    } finally {
+        btn.innerHTML = '<span>Update Password</span><i class="fas fa-arrow-right text-xs"></i>';
+        btn.disabled = false;
+    }
+}
+
+// Ensure user email is shown in dropdown
+auth.onAuthStateChanged(user => {
+    if (user) {
+        const emailEl = document.getElementById('dropdown-user-email');
+        if (emailEl) emailEl.textContent = user.email;
+    }
+});

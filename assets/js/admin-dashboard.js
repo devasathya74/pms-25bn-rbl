@@ -1,7 +1,7 @@
 // Admin Dashboard JavaScript
 // Handles all CRUD operations for students, teachers, admissions, and notifications
 
-import { authHelper, firestoreHelper, analyticsHelper, storageHelper, collection, query, where, getDocs, orderBy, db } from './firebase-config.js';
+import { authHelper, firestoreHelper, analyticsHelper, storageHelper, collection, query, where, getDocs, orderBy, db, auth, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from './firebase-config.js';
 
 // Global state
 let allAdmissions = [];
@@ -140,12 +140,12 @@ function setupEventListeners() {
     }
     eventListenersSetup = true;
     // Logout
-    document.getElementById('logout-btn').addEventListener('click', async () => {
-        if (confirm('क्या आप लॉगआउट करना चाहते हैं?')) {
-            await authHelper.logout();
-            window.location.href = '../index.html';
-        }
-    });
+    // Logout listener removed - handled by onclick in dropdown
+
+    // Make helpers available globally
+    window.authHelper = authHelper;
+    window.firestoreHelper = firestoreHelper;
+    window.storageHelper = storageHelper; // Just in case
 
 
     // Form Listeners - Use arrow functions to ensure the handler is resolved at call time or ensure defined.
@@ -1705,3 +1705,119 @@ if (!window.closeStudentModal) {
         document.getElementById('student-modal-title').textContent = 'Add Student';
     };
 }
+
+// User Profile & Password Management
+window.toggleUserDropdown = function () {
+    const dropdown = document.getElementById('user-dropdown');
+    dropdown.classList.toggle('hidden');
+    // Close if clicked outside
+    if (!dropdown.classList.contains('hidden')) {
+        document.addEventListener('click', closeDropdownOnClickOutside);
+    } else {
+        document.removeEventListener('click', closeDropdownOnClickOutside);
+    }
+}
+
+function closeDropdownOnClickOutside(e) {
+    const dropdown = document.getElementById('user-dropdown');
+    const button = document.querySelector('button[onclick="toggleUserDropdown()"]');
+    if (!dropdown.contains(e.target) && !button.contains(e.target)) {
+        dropdown.classList.add('hidden');
+        document.removeEventListener('click', closeDropdownOnClickOutside);
+    }
+}
+
+window.openChangePasswordModal = function () {
+    document.getElementById('user-dropdown').classList.add('hidden'); // Close dropdown
+    const modal = document.getElementById('change-password-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    setTimeout(() => {
+        document.getElementById('password-modal-content').classList.remove('scale-95', 'opacity-0');
+        document.getElementById('password-modal-content').classList.add('scale-100', 'opacity-100');
+    }, 10);
+    document.getElementById('change-password-form').reset();
+}
+
+window.closeChangePasswordModal = function () {
+    const content = document.getElementById('password-modal-content');
+    content.classList.remove('scale-100', 'opacity-100');
+    content.classList.add('scale-95', 'opacity-0');
+    setTimeout(() => {
+        const modal = document.getElementById('change-password-modal');
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }, 300);
+}
+
+window.togglePasswordVisibility = function (id) {
+    const input = document.getElementById(id);
+    const icon = input.parentElement.querySelector('i.fa-eye') || input.parentElement.querySelector('i.fa-eye-slash');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
+window.handlePasswordChange = async function (e) {
+    e.preventDefault();
+    const currentPassword = document.getElementById('current-password').value;
+    const newPassword = document.getElementById('new-password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+    const btn = document.getElementById('save-password-btn');
+
+    if (newPassword !== confirmPassword) {
+        showToast('error', 'New passwords do not match!');
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        showToast('error', 'Password must be at least 6 characters.');
+        return;
+    }
+
+    try {
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+        btn.disabled = true;
+
+        const user = auth.currentUser;
+        if (!user) {
+            showToast('error', 'User not authenticated. Please login again.');
+            setTimeout(() => authHelper.logout(), 2000);
+            return;
+        }
+
+        // 1. Re-authenticate
+        const credential = EmailAuthProvider.credential(user.email, currentPassword);
+        await reauthenticateWithCredential(user, credential);
+
+        // 2. Update Password
+        await updatePassword(user, newPassword);
+
+        showToast('success', 'Password updated successfully!');
+        closeChangePasswordModal();
+
+    } catch (error) {
+        console.error("Password Update Error:", error);
+        let msg = 'Failed to update password.';
+        if (error.code === 'auth/wrong-password') msg = 'Current password is incorrect.';
+        if (error.code === 'auth/requires-recent-login') msg = 'Please logout and login again to proceed.';
+        showToast('error', msg);
+    } finally {
+        btn.innerHTML = '<span>Update Password</span><i class="fas fa-arrow-right text-xs"></i>';
+        btn.disabled = false;
+    }
+}
+
+// Ensure user email is shown in dropdown
+auth.onAuthStateChanged(user => {
+    if (user) {
+        const emailEl = document.getElementById('dropdown-user-email');
+        if (emailEl) emailEl.textContent = user.email;
+    }
+});
